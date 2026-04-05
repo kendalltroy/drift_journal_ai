@@ -1,0 +1,83 @@
+{
+  "expo": {
+    "name": "Drift",
+    "slug": "drift-journal",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.drift.journal",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "Drift uses your microphone to let you record voice journal entries.",
+        "NSSpeechRecognitionUsageDescription": "Drift transcribes your voice recordings to text."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "package": "xyz.create.CreateExpoEnvironment"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "sitemap": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
+        }
+      ],
+      "expo-audio",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": true,
+          "supportsPictureInPicture": true
+        }
+      ],
+      "expo-font",
+      "expo-secure-store",
+      "expo-web-browser"
+    ],
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false,
+        "sitemap": false
+      },
+      "eas": {
+        "projectId": "ea39d0f0-d66f-49d7-b721-c206058e7c38"
+      }
+    },
+    "owner": "kendalltroy19"
+  }
+}
