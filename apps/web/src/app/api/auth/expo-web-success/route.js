@@ -4,17 +4,18 @@ import { rateLimit } from "@/app/api/utils/rateLimit";
 export async function GET(request) {
   const limited = rateLimit(request, { limit: 5, key: "auth" });
   if (limited) return limited;
+	const isSecure = process.env.AUTH_URL?.startsWith('https') ?? false;
 	const [token, jwt] = await Promise.all([
 		getToken({
 			req: request,
 			secret: process.env.AUTH_SECRET,
-			secureCookie: process.env.AUTH_URL.startsWith('https'),
+			secureCookie: isSecure,
 			raw: true,
 		}),
 		getToken({
 			req: request,
 			secret: process.env.AUTH_SECRET,
-			secureCookie: process.env.AUTH_URL.startsWith('https'),
+			secureCookie: isSecure,
 		}),
 	]);
 
