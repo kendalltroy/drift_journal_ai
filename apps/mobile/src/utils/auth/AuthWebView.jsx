@@ -30,6 +30,7 @@ export const AuthWebView = ({ mode, proxyURL, baseURL }) => {
   const webViewRef = useRef(null);
   const isAuthenticated = isReady ? !!auth : null;
   const iframeRef = useRef(null);
+  const pageLoadedRef = useRef(false);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -37,6 +38,7 @@ export const AuthWebView = ({ mode, proxyURL, baseURL }) => {
   }, [isAuthenticated]);
 
   useEffect(() => {
+    console.log('[AuthWebView] reset effect fired. mode:', mode, 'isAuthenticated:', isAuthenticated);
     if (isAuthenticated) return;
     setURI(`${baseURL}/account/${mode}?${callbackQueryString}`);
   }, [mode, baseURL, isAuthenticated]);
@@ -71,6 +73,21 @@ export const AuthWebView = ({ mode, proxyURL, baseURL }) => {
     <WebView
       ref={webViewRef}
       sharedCookiesEnabled
+      injectedJavaScript={`
+        (function() {
+          function disableAutofill() {
+            document.querySelectorAll('input').forEach(function(el) {
+              el.setAttribute('autocomplete', 'off');
+              el.setAttribute('autocorrect', 'off');
+              el.setAttribute('autocapitalize', 'off');
+            });
+          }
+          disableAutofill();
+          var observer = new MutationObserver(disableAutofill);
+          observer.observe(document.body, { childList: true, subtree: true });
+        })();
+        true;
+      `}
       source={{ uri: currentURI }}
       headers={{
         'x-createxyz-project-group-id': process.env.EXPO_PUBLIC_PROJECT_GROUP_ID,
@@ -90,14 +107,19 @@ export const AuthWebView = ({ mode, proxyURL, baseURL }) => {
           console.error('Failed to parse auth message:', e);
         }
       }}
+      onLoad={() => { pageLoadedRef.current = true; }}
       onNavigationStateChange={(navState) => {
         if (navState.url.includes('/api/auth/token') && !navState.loading) {
           webViewRef.current?.injectJavaScript(INJECT_READ_TOKEN);
         }
       }}
       onShouldStartLoadWithRequest={(request) => {
-        if (request.url === currentURI) return true;
+        if (request.url === currentURI) {
+          if (pageLoadedRef.current) return false;
+          return true;
+        }
         if (request.url.includes('/api/auth/token')) return true;
+        if (request.url.includes('/account/')) return true;
 
         const hasParams = request.url.includes('?');
         const separator = hasParams ? '&' : '?';

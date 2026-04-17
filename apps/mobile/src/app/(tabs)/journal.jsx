@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ChevronRight, Trash2 } from "lucide-react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { authFetch } from "@/utils/authFetch";
 
 export default function HistoryScreen() {
@@ -20,7 +20,7 @@ export default function HistoryScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { data: entries, isLoading } = useQuery({
+  const { data: entries, isLoading, refetch } = useQuery({
     queryKey: ["journal-entries"],
     queryFn: async () => {
       const response = await authFetch("/api/journal");
@@ -28,6 +28,12 @@ export default function HistoryScreen() {
       return response.json();
     },
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
 
   const deleteEntry = useMutation({
     mutationFn: async (id) => {

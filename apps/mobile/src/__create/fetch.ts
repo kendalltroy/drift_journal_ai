@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetch as expoFetch } from 'expo/fetch';
 
 const originalFetch = fetch;
@@ -76,7 +76,7 @@ const fetchToWeb = async function fetchWithHeaders(...args: Params) {
     }
   }
 
-  const auth = await SecureStore.getItemAsync(authKey)
+  const auth = await AsyncStorage.getItem(authKey)
     .then((auth) => {
       return auth ? JSON.parse(auth) : null;
     })

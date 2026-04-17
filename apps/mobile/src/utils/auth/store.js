@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const authKey = `${process.env.EXPO_PUBLIC_PROJECT_GROUP_ID}-jwt`;
 
@@ -11,9 +11,9 @@ export const useAuthStore = create((set) => ({
   auth: null,
   setAuth: (auth) => {
     if (auth) {
-      SecureStore.setItemAsync(authKey, JSON.stringify(auth));
+      AsyncStorage.setItem(authKey, JSON.stringify(auth));
     } else {
-      SecureStore.deleteItemAsync(authKey);
+      AsyncStorage.removeItem(authKey);
     }
     set({ auth });
   },

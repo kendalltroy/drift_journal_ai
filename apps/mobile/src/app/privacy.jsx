@@ -146,7 +146,7 @@ export default function PrivacyScreen() {
         {/* Age requirement */}
         <Text style={{ color: "#f9a35e", fontSize: 18, fontWeight: "700", marginTop: 28, marginBottom: 12 }}>Age requirement</Text>
         <Text style={{ color: "#ffefdd", fontSize: 15, lineHeight: 24 }}>
-          Drift is for users 13 and older. If you believe a minor has created an account, contact us at{" "}
+          Drift is for users 18 and older. If you believe a minor has created an account, contact us at{" "}
           <Text onPress={() => Linking.openURL("mailto:driftjournal8@gmail.com")} style={{ color: "#f9a35e", textDecorationLine: "underline" }}>
             driftjournal8@gmail.com
           </Text>
@@ -169,7 +169,39 @@ export default function PrivacyScreen() {
           {" "}or through Settings → Help Center in the app.
         </Text>
 
-        <Text style={{ color: "#7e3f2d", fontSize: 13, lineHeight: 20, marginTop: 32, textAlign: "center" }}>
+        <TouchableOpacity
+          onPress={() => router.push("/full-policy")}
+          style={{
+            marginTop: 32,
+            borderWidth: 1,
+            borderColor: "#f9a35e",
+            borderRadius: 12,
+            paddingVertical: 14,
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ color: "#f9a35e", fontWeight: "600", fontSize: 15 }}>
+            View Full Privacy Policy
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => router.push("/terms")}
+          style={{
+            marginTop: 12,
+            borderWidth: 1,
+            borderColor: "#f9a35e",
+            borderRadius: 12,
+            paddingVertical: 14,
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ color: "#f9a35e", fontWeight: "600", fontSize: 15 }}>
+            View Terms & Conditions
+          </Text>
+        </TouchableOpacity>
+
+        <Text style={{ color: "#7e3f2d", fontSize: 13, lineHeight: 20, marginTop: 24, textAlign: "center" }}>
           Last updated: April 4, 2026
         </Text>
       </ScrollView>

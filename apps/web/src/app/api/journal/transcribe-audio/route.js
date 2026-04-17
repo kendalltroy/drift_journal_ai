@@ -1,62 +1,44 @@
+import { getAuthUser } from "@/app/api/utils/getAuthUser";
+import { rateLimit } from "@/app/api/utils/rateLimit";
+
 export async function POST(request) {
+  const limited = rateLimit(request, { key: "transcribe" });
+  if (limited) return limited;
   try {
-    const contentType = request.headers.get("content-type") || "";
-
-    let audioBuffer;
-    let filename = "audio.m4a";
-
-    if (contentType.includes("multipart/form-data")) {
-      const formData = await request.formData();
-      const file = formData.get("file");
-      if (!file) {
-        return Response.json({ error: "No file provided" }, { status: 400 });
-      }
-      audioBuffer = await file.arrayBuffer();
-      filename = file.name || filename;
-    } else {
-      const body = await request.json();
-      const { audioUrl } = body;
-      if (!audioUrl) {
-        return Response.json({ error: "No audio URL provided" }, { status: 400 });
-      }
-      const audioResponse = await fetch(audioUrl);
-      if (!audioResponse.ok) {
-        throw new Error("Failed to fetch audio file");
-      }
-      audioBuffer = await audioResponse.arrayBuffer();
+    const user = await getAuthUser(request);
+    if (!user?.userId) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const formData = new FormData();
-    formData.append("file", new Blob([audioBuffer]), filename);
-    formData.append("model", "whisper-1");
+    const formData = await request.formData();
+    const file = formData.get("file");
+    if (!file) {
+      return Response.json({ error: "No file provided" }, { status: 400 });
+    }
+
+    const audioBuffer = await file.arrayBuffer();
+    const whisperForm = new FormData();
+    whisperForm.append("file", new Blob([audioBuffer]), file.name || "audio.m4a");
+    whisperForm.append("model", "whisper-1");
 
     const whisperResponse = await fetch(
       "https://api.openai.com/v1/audio/transcriptions",
       {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: formData,
+        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        body: whisperForm,
       },
     );
 
     if (!whisperResponse.ok) {
-      const errorData = await whisperResponse.text();
-      console.error("Whisper API error:", errorData);
+      console.error("Whisper API error:", await whisperResponse.text());
       throw new Error("Failed to transcribe audio");
     }
 
-    const transcription = await whisperResponse.json();
-
-    return Response.json({
-      transcription: transcription.text,
-    });
+    const { text } = await whisperResponse.json();
+    return Response.json({ transcription: text });
   } catch (error) {
     console.error("Error transcribing audio:", error);
-    return Response.json(
-      { error: "Failed to transcribe audio" },
-      { status: 500 },
-    );
+    return Response.json({ error: "Failed to transcribe audio" }, { status: 500 });
   }
 }

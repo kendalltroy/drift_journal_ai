@@ -5,6 +5,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import NotificationManager from "@/utils/notifications";
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
@@ -19,7 +20,7 @@ const queryClient = new QueryClient({
 });
 
 function AuthGate() {
-  useRequireAuth();
+  useRequireAuth({ mode: "signin" });
   return null;
 }
 
@@ -28,6 +29,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     initiate();
+    NotificationManager.requestPermission();
   }, [initiate]);
 
   useEffect(() => {

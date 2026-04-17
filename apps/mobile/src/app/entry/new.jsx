@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   ScrollView,
   Platform,
+  Modal,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -32,10 +34,11 @@ import {
   setAudioModeAsync,
   RecordingPresets,
 } from "expo-audio";
-import useUpload from "@/utils/useUpload";
 import { saveJournalEntry } from "@/utils/saveJournalEntry";
 import { authFetch } from "@/utils/authFetch";
+import { useQueryClient } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import NotificationManager from "@/utils/notifications";
 import { PERSONALIZATION_KEY } from "@/app/personalization";
 
 export default function NewEntryScreen() {
@@ -43,6 +46,7 @@ export default function NewEntryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
+  const queryClient = useQueryClient();
   const [step, setStep] = useState("mode");
   const [mode, setMode] = useState(null);
   const [content, setContent] = useState("");
@@ -57,9 +61,8 @@ export default function NewEntryScreen() {
   const [promptStage, setPromptStage] = useState(1);
   const [isLoadingAi, setIsLoadingAi] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [audioMemos, setAudioMemos] = useState([]);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
-  const [isPremium, setIsPremium] = useState(true); // Set to true to enable reminders
+  const [showCrisisModal, setShowCrisisModal] = useState(false);
 
   // Date/time picker state
   const [selectedDate, setSelectedDate] = useState(null);
@@ -68,7 +71,6 @@ export default function NewEntryScreen() {
   // Audio recording
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder);
-  const [upload, { loading: uploadingAudio }] = useUpload();
   const [isTranscribing, setIsTranscribing] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -154,6 +156,10 @@ export default function NewEntryScreen() {
 
       if (response.ok) {
         const data = await response.json();
+        if (data.crisis) {
+          setShowCrisisModal(true);
+          return;
+        }
         setCurrentAiPrompt(data.message);
         setPromptStage(data.nextStage || stage + 1);
       } else {
@@ -248,11 +254,6 @@ export default function NewEntryScreen() {
   };
 
   const handleContinueFromReminder = () => {
-    if (!isPremium) {
-      setShowPremiumModal(true);
-      return;
-    }
-    // Premium user - save reminder content and go to time selection
     setReminderTasks(content);
     transitionToStep("reminder_time");
   };
@@ -265,9 +266,10 @@ export default function NewEntryScreen() {
     }
 
     try {
-      // Combine selected date and time into ISO timestamp
-      const scheduledDateTime = new Date(selectedDate);
-      scheduledDateTime.setHours(selectedTime.hour, selectedTime.minute, 0, 0);
+      // Combine selected date and time into ISO timestamp.
+      // Parse as local date (not UTC) to avoid timezone day-shift.
+      const [y, m, d] = selectedDate.split("-").map(Number);
+      const scheduledDateTime = new Date(y, m - 1, d, selectedTime.hour, selectedTime.minute, 0, 0);
 
       // Save task to backend with scheduled time
       const response = await authFetch("/api/tasks", {
@@ -282,6 +284,19 @@ export default function NewEntryScreen() {
         throw new Error("Failed to save reminder");
       }
 
+      const task = await response.json();
+
+      // Schedule local notification for the thought
+      const notifId = await NotificationManager.scheduleThoughtReminder(reminderTasks, scheduledDateTime);
+
+      // Persist the notification identifier locally, keyed by task ID
+      if (notifId && task?.id) {
+        const stored = await AsyncStorage.getItem("drift_thought_notif_ids");
+        const map = stored ? JSON.parse(stored) : {};
+        map[task.id] = notifId;
+        await AsyncStorage.setItem("drift_thought_notif_ids", JSON.stringify(map));
+      }
+
       setContent("");
       transitionToStep("closing");
     } catch (error) {
@@ -294,14 +309,8 @@ export default function NewEntryScreen() {
   const handleFinalSave = async () => {
     setIsSaving(true);
     try {
-      await saveJournalEntry(
-        {
-          emotion,
-          mode,
-          conversationHistory,
-        },
-        audioMemos,
-      );
+      await saveJournalEntry({ emotion, mode, conversationHistory });
+      queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
       router.back();
     } catch (error) {
       console.error("Failed to save entry:", error);
@@ -713,6 +722,138 @@ export default function NewEntryScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#4e1709" }}>
+      {/* Crisis Modal */}
+      <Modal
+        visible={showCrisisModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.85)",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 24,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: "#4e1709",
+              borderRadius: 24,
+              padding: 28,
+              width: "100%",
+              borderWidth: 2,
+              borderColor: "#f9a35e",
+            }}
+          >
+            <Text
+              style={{
+                color: "#ffefdd",
+                fontSize: 22,
+                fontWeight: "700",
+                marginBottom: 12,
+                textAlign: "center",
+              }}
+            >
+              You're not alone
+            </Text>
+            <Text
+              style={{
+                color: "#ffefdd",
+                fontSize: 16,
+                lineHeight: 24,
+                marginBottom: 24,
+                textAlign: "center",
+              }}
+            >
+              It sounds like you might be going through something really difficult right now. Please reach out — help is available right now, any time.
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => Linking.openURL("tel:988")}
+              style={{
+                backgroundColor: "#f9a35e",
+                borderRadius: 14,
+                padding: 16,
+                marginBottom: 12,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: "#4e1709", fontSize: 16, fontWeight: "700" }}>
+                Call 988 — Suicide & Crisis Lifeline
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => Linking.openURL("sms:741741?body=HOME")}
+              style={{
+                backgroundColor: "#7e3f2d",
+                borderRadius: 14,
+                padding: 16,
+                marginBottom: 24,
+                alignItems: "center",
+                borderWidth: 1,
+                borderColor: "#f9a35e",
+              }}
+            >
+              <Text style={{ color: "#ffefdd", fontSize: 16, fontWeight: "700" }}>
+                Text HOME to 741741
+              </Text>
+              <Text style={{ color: "#7e3f2d", fontSize: 13, marginTop: 2 }}>
+                Crisis Text Line
+              </Text>
+            </TouchableOpacity>
+
+            <Text
+              style={{
+                color: "#ffefdd",
+                fontSize: 16,
+                fontWeight: "600",
+                textAlign: "center",
+                marginBottom: 16,
+              }}
+            >
+              Are you safe right now?
+            </Text>
+
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <TouchableOpacity
+                onPress={() => setShowCrisisModal(false)}
+                style={{
+                  flex: 1,
+                  backgroundColor: "#f9a35e",
+                  borderRadius: 14,
+                  padding: 14,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: "#4e1709", fontSize: 16, fontWeight: "700" }}>
+                  Yes, I'm safe
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => Linking.openURL("tel:988")}
+                style={{
+                  flex: 1,
+                  backgroundColor: "#7e3f2d",
+                  borderRadius: 14,
+                  padding: 14,
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: "#f9a35e",
+                }}
+              >
+                <Text style={{ color: "#ffefdd", fontSize: 16, fontWeight: "700" }}>
+                  I need help
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
       <View
         style={{
           flexDirection: "row",
@@ -896,7 +1037,7 @@ export default function NewEntryScreen() {
                     <View style={{ alignItems: "center", marginTop: 24 }}>
                       <SmoothButton
                         onPress={handleVoiceMemo}
-                        disabled={uploadingAudio || isTranscribing}
+                        disabled={isTranscribing}
                         style={{
                           width: 72,
                           height: 72,
@@ -962,18 +1103,17 @@ export default function NewEntryScreen() {
                         </View>
                       )}
 
-                      {!recorderState.isRecording &&
-                        audioMemos.length === 0 && (
-                          <Text
-                            style={{
-                              color: "#7e3f2d",
-                              fontSize: 12,
-                              marginTop: 8,
-                            }}
-                          >
-                            or record a voice memo
-                          </Text>
-                        )}
+                      {!recorderState.isRecording && (
+                        <Text
+                          style={{
+                            color: "#7e3f2d",
+                            fontSize: 12,
+                            marginTop: 8,
+                          }}
+                        >
+                          or record a voice memo
+                        </Text>
+                      )}
                     </View>
                   </>
                 )}
@@ -1348,7 +1488,7 @@ export default function NewEntryScreen() {
                 <View style={{ alignItems: "center", marginTop: 24 }}>
                   <SmoothButton
                     onPress={handleVoiceMemo}
-                    disabled={uploadingAudio || isTranscribing}
+                    disabled={isTranscribing}
                     style={{
                       width: 72,
                       height: 72,
@@ -1400,7 +1540,7 @@ export default function NewEntryScreen() {
                     </View>
                   )}
 
-                  {!recorderState.isRecording && audioMemos.length === 0 && (
+                  {!recorderState.isRecording && (
                     <Text
                       style={{ color: "#7e3f2d", fontSize: 12, marginTop: 8 }}
                     >

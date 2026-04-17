@@ -1,20 +1,24 @@
-import sql from "@/app/api/utils/sql";
+import { supabase } from "@/app/api/utils/supabase";
 import { getAuthUser } from "@/app/api/utils/getAuthUser";
+import { rateLimit } from "@/app/api/utils/rateLimit";
 
 export async function GET(request) {
+  const limited = rateLimit(request, { key: "journal" });
+  if (limited) return limited;
   try {
     const user = await getAuthUser(request);
     if (!user?.userId) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const entries = await sql`
-      SELECT id, emotion, mode, prompt, summary, sentiment_score, tags, created_at, generated_at, ai_prompts
-      FROM journal_entries
-      WHERE user_id = ${user.userId}
-      ORDER BY created_at DESC
-    `;
-    return Response.json(entries);
+    const { data, error } = await supabase
+      .from("journal_entries")
+      .select("id, emotion, mode, prompt, summary, sentiment_score, tags, created_at, generated_at, ai_prompts")
+      .eq("user_id", user.userId)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return Response.json(data);
   } catch (error) {
     console.error("Error fetching entries:", error);
     return Response.json({ error: "Failed to fetch entries" }, { status: 500 });
@@ -22,6 +26,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  const limited = rateLimit(request, { key: "journal" });
+  if (limited) return limited;
   try {
     const user = await getAuthUser(request);
     if (!user?.userId) {
@@ -29,25 +35,15 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const {
-      emotion,
-      mode,
-      content,
-      prompt,
-      audioUrls = [],
-      conversationHistory = [],
-    } = body;
+    const { emotion, mode, content, prompt, conversationHistory = [] } = body;
 
-    // Extract AI prompts and user content separately
     let structuredContent = "";
-    let aiPrompts = []; // Array of AI prompts shown to user
+    let aiPrompts = [];
 
-    if (conversationHistory && conversationHistory.length > 0) {
+    if (conversationHistory.length > 0) {
       let entryNum = 1;
-
       conversationHistory.forEach((msg) => {
         if (msg.role === "assistant") {
-          // Collect AI prompts
           aiPrompts.push(msg.content);
         } else if (msg.role === "user") {
           structuredContent += `Entry ${entryNum}: ${msg.content}\n`;
@@ -55,14 +51,10 @@ export async function POST(request) {
         }
       });
     } else {
-      // Fallback for simple entries
       structuredContent = `Entry 1: ${content}`;
-      if (prompt) {
-        aiPrompts = [prompt];
-      }
+      if (prompt) aiPrompts = [prompt];
     }
 
-    // Generate AI analysis in parallel
     const generatedAt = new Date().toISOString();
     let summary = "";
     let sentimentScore = 2;
@@ -70,7 +62,6 @@ export async function POST(request) {
 
     try {
       const [summaryResponse, analyticsResponse] = await Promise.all([
-        // Generate 5-word summary
         fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -92,7 +83,6 @@ export async function POST(request) {
             ],
           }),
         }),
-        // Generate sentiment score and tags
         fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -123,9 +113,7 @@ Return ONLY valid JSON in this format: {"sentiment_score": "medium", "tags": ["w
         const summaryData = await summaryResponse.json();
         summary = summaryData.choices[0].message.content.trim();
         const words = summary.split(/\s+/);
-        if (words.length > 5) {
-          summary = words.slice(0, 5).join(" ");
-        }
+        if (words.length > 5) summary = words.slice(0, 5).join(" ");
       }
 
       if (analyticsResponse.ok) {
@@ -136,43 +124,32 @@ Return ONLY valid JSON in this format: {"sentiment_score": "medium", "tags": ["w
           const sentimentMap = { low: 1, medium: 2, high: 3 };
           sentimentScore = sentimentMap[parsed.sentiment_score] ?? 2;
           tags = Array.isArray(parsed.tags) ? parsed.tags : [];
-        } catch (parseError) {
-          console.error("Failed to parse AI analytics response:", parseError);
+        } catch {
+          // keep defaults
         }
       }
-    } catch (error) {
-      console.error("Failed to generate AI analysis:", error);
+    } catch {
       summary = emotion ? `Feeling ${emotion.toLowerCase()}` : "Journal entry";
     }
 
-    // Save to database (content and audio stay on device only, AI prompts saved to ai_prompts array)
-    const [newEntry] = await sql`
-      INSERT INTO journal_entries (
-        emotion, 
-        mode, 
-        prompt, 
-        summary, 
-        user_id, 
-        sentiment_score, 
-        tags, 
-        generated_at,
-        ai_prompts
-      )
-      VALUES (
-        ${emotion}, 
-        ${mode}, 
-        ${aiPrompts.length > 0 ? aiPrompts[0] : null}, 
-        ${summary}, 
-        ${user.userId},
-        ${sentimentScore}, 
-        ${tags}, 
-        ${generatedAt},
-        ${aiPrompts}
-      )
-      RETURNING id, emotion, mode, prompt, summary, sentiment_score, tags, created_at, generated_at, ai_prompts
-    `;
+    const { data, error } = await supabase
+      .from("journal_entries")
+      .insert({
+        emotion,
+        mode,
+        prompt: aiPrompts[0] ?? null,
+        summary,
+        user_id: user.userId,
+        sentiment_score: sentimentScore,
+        tags,
+        generated_at: generatedAt,
+        ai_prompts: aiPrompts,
+      })
+      .select("id, emotion, mode, prompt, summary, sentiment_score, tags, created_at, generated_at, ai_prompts")
+      .single();
 
-    return Response.json(newEntry);
+    if (error) throw error;
+    return Response.json(data);
   } catch (error) {
     console.error("Error creating entry:", error);
     return Response.json({ error: "Failed to create entry" }, { status: 500 });
@@ -180,18 +157,23 @@ Return ONLY valid JSON in this format: {"sentiment_score": "medium", "tags": ["w
 }
 
 export async function DELETE(request) {
+  const limited = rateLimit(request, { key: "journal" });
+  if (limited) return limited;
   try {
     const user = await getAuthUser(request);
     if (!user?.userId) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await sql`DELETE FROM journal_entries WHERE user_id = ${user.userId}`;
+    const { error } = await supabase
+      .from("journal_entries")
+      .delete()
+      .eq("user_id", user.userId);
 
+    if (error) throw error;
     return Response.json({ success: true });
   } catch (error) {
     console.error("Error deleting all entries:", error);
     return Response.json({ error: "Failed to delete entries" }, { status: 500 });
   }
 }
-

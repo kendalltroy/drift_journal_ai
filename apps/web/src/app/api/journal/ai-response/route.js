@@ -1,7 +1,47 @@
-import sql from "@/app/api/utils/sql";
+import { supabase } from "@/app/api/utils/supabase";
+import { getAuthUser } from "@/app/api/utils/getAuthUser";
+import { rateLimit } from "@/app/api/utils/rateLimit";
+
+// Phrases that indicate a genuine crisis — specific enough to avoid figurative language
+// ("killing it at work", "die laughing") while catching real distress signals.
+const CRISIS_PHRASES = [
+  "self harm", "self-harm", "selfharm",
+  "hurt myself", "hurting myself", "harm myself", "harming myself",
+  "cut myself", "cutting myself", "cutting again",
+  "burn myself", "burning myself",
+  "suicide", "suicidal",
+  "kill myself", "killing myself",
+  "end my life", "ending my life",
+  "take my life", "taking my life",
+  "don't want to live", "dont want to live",
+  "don't want to be alive", "dont want to be alive",
+  "want to die", "wanting to die",
+  "wish i was dead", "wish i were dead",
+  "better off dead", "better off without me",
+  "no reason to live", "no point in living",
+  "thinking about ending it",
+  "overdose on", "od myself",
+  "hang myself", "hanging myself",
+  "jump off a", "jump off the",
+  "going to hurt someone", "going to kill someone",
+  "want to hurt someone", "want to kill someone",
+  "going to harm someone",
+];
+
+function detectCrisis(text) {
+  const lower = text.toLowerCase();
+  return CRISIS_PHRASES.some((phrase) => lower.includes(phrase));
+}
 
 export async function POST(request) {
+  const limited = rateLimit(request, { key: "ai-response" });
+  if (limited) return limited;
   try {
+    const user = await getAuthUser(request);
+    if (!user?.userId) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const {
       userMessage,
@@ -11,18 +51,23 @@ export async function POST(request) {
       personalized = true,
     } = body;
 
-    // Fetch previous journal entries from the past 7 days (summaries only) if personalization is enabled
+    // Crisis detection runs before anything else
+    if (detectCrisis(userMessage)) {
+      return Response.json({ crisis: true });
+    }
+
     let entryContext = "";
     if (personalized) {
-      const previousEntries = await sql`
-        SELECT emotion, summary, created_at
-        FROM journal_entries
-        WHERE created_at >= NOW() - INTERVAL '7 days'
-        ORDER BY created_at DESC
-        LIMIT 5
-      `;
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: previousEntries } = await supabase
+        .from("journal_entries")
+        .select("emotion, summary, created_at")
+        .eq("user_id", user.userId)
+        .gte("created_at", sevenDaysAgo)
+        .order("created_at", { ascending: false })
+        .limit(5);
 
-      if (previousEntries.length > 0) {
+      if (previousEntries?.length > 0) {
         entryContext = "\n\nPrevious entries (past 7 days):\n";
         previousEntries.forEach((entry, index) => {
           const date = new Date(entry.created_at).toLocaleDateString();
@@ -32,11 +77,8 @@ export async function POST(request) {
       }
     }
 
-    // Define the 5-step journaling sequence
     const promptPatterns = {
       1: {
-        purpose:
-          "Gratitude - help them slow down and notice something positive",
         instruction: `STEP 1: GRATITUDE
 
 Your response must include (2-3 sentences):
@@ -50,7 +92,6 @@ Example structure:
 Keep it calm, warm, and brief. ONE question only.`,
       },
       2: {
-        purpose: "Brain Dump #1 - release what's on their mind",
         instruction: `STEP 2: BRAIN DUMP #1
 
 Your response must include (2-3 sentences):
@@ -68,7 +109,6 @@ Personalization examples by emotion:
 Keep it open and pressure-free. ONE question only.`,
       },
       3: {
-        purpose: "Brain Dump #2 - name the feeling gently",
         instruction: `STEP 3: BRAIN DUMP #2
 
 Your response must include (2-3 sentences):
@@ -82,7 +122,6 @@ Example structure:
 Keep the label gentle and human. ONE question only.`,
       },
       4: {
-        purpose: "Brain Dump #3 - close with one final reflective question",
         instruction: `STEP 4: BRAIN DUMP #3
 
 Your response must include (2-3 sentences):
@@ -96,7 +135,6 @@ Example structure:
 Help them feel complete. ONE question only.`,
       },
       5: {
-        purpose: "Any Last Thoughts - open space with no pressure",
         instruction: `STEP 5: ANY LAST THOUGHTS
 
 Your response must include (1-2 sentences):
@@ -119,31 +157,35 @@ Emotion: ${emotion}
 
 ${entryContext}
 
+SCOPE RESTRICTIONS — you must never violate these:
+- You are not a therapist, counselor, or medical professional
+- Never provide medical advice, diagnoses, or treatment recommendations
+- Never offer therapy-level analysis or deep psychological interpretation
+- Never attempt to process trauma or serious mental health issues
+- Your only purpose is to help the user gently reflect on their day and prepare for restful sleep
+- Keep all responses focused on calming the user and guiding them toward sleep
+
+RESPONSE STRUCTURE — follow this exact order every single time:
+1. VALIDATION: Acknowledge and reflect what the user is feeling (1 sentence)
+2. AFFIRMATION: Offer calming, reassuring language — e.g. "take your time", "no rush", "you're allowed to relax", "it's okay to rest now" (1 sentence)
+3. QUESTION: One gentle follow-up question to guide the journaling forward (1 sentence, must end with ?)
+
 ${currentPrompt.instruction}
 
 Core tone rules:
 - Calm, slow, warm — never rushed or clinical
-- Use phrases like "Take your time", "You're allowed to rest", "It's okay", "I hear you"
-- Validate every response warmly
-- Include a gentle affirmation in each response
+- Validate every response warmly before anything else
 - Ask ONLY ONE question per step (never more than one)
 - Keep responses SHORT (2-3 sentences max)
 - In steps 3 and 4: use gentle, human feeling labels (not therapy-speak)
 - In step 5: no analysis, just space
 
-CRITICAL: Never ask more than ONE question per response. One question only.`;
+CRITICAL: Never ask more than ONE question per response. Always follow the Validation → Affirmation → Question order.`;
 
-    // Build messages array with conversation history
     const messages = [
-      {
-        role: "system",
-        content: systemPrompt,
-      },
+      { role: "system", content: systemPrompt },
       ...conversationHistory,
-      {
-        role: "user",
-        content: userMessage,
-      },
+      { role: "user", content: userMessage },
     ];
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -152,10 +194,7 @@ CRITICAL: Never ask more than ONE question per response. One question only.`;
         "Content-Type": "application/json",
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        messages: messages,
-      }),
+      body: JSON.stringify({ model: "gpt-4o", messages }),
     });
 
     if (!response.ok) {
@@ -168,9 +207,6 @@ CRITICAL: Never ask more than ONE question per response. One question only.`;
     return Response.json({ message: aiMessage, nextStage: promptStage + 1 });
   } catch (error) {
     console.error("Error generating AI response:", error);
-    return Response.json(
-      { error: "Failed to generate response" },
-      { status: 500 },
-    );
+    return Response.json({ error: "Failed to generate response" }, { status: 500 });
   }
 }

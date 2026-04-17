@@ -1,43 +1,63 @@
-import { router } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
-import { useCallback, useEffect, useMemo } from 'react';
-import { create } from 'zustand';
-import { Modal, View } from 'react-native';
+import { useCallback, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../supabase';
 import { useAuthModal, useAuthStore, authKey } from './store';
+import { isTokenExpired } from './tokenUtils';
 
-
-/**
- * This hook provides authentication functionality.
- * It may be easier to use the `useAuthModal` or `useRequireAuth` hooks
- * instead as those will also handle showing authentication to the user
- * directly.
- */
 export const useAuth = () => {
   const { isReady, auth, setAuth } = useAuthStore();
-  const { isOpen, close, open } = useAuthModal();
+  const { close, open } = useAuthModal();
 
-  const initiate = useCallback(() => {
-    SecureStore.getItemAsync(authKey).then((auth) => {
-      useAuthStore.setState({
-        auth: auth ? JSON.parse(auth) : null,
-        isReady: true,
-      });
-    });
+  const initiate = useCallback(async () => {
+    const stored = await AsyncStorage.getItem(authKey);
+
+    if (!stored) {
+      useAuthStore.setState({ auth: null, isReady: true });
+      return;
+    }
+
+    try {
+      // getSession reads from AsyncStorage (full session including refresh_token)
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session?.refresh_token) {
+        // setSession handles refresh if access_token is expired
+        const { data, error } = await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+
+        if (!error && data.session && !isTokenExpired(data.session.access_token)) {
+          useAuthStore.setState({
+            auth: { jwt: data.session.access_token, user: data.session.user },
+            isReady: true,
+          });
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('[useAuth] session restore failed:', e.message);
+    }
+
+    // Session is dead — clear everything
+    await supabase.auth.signOut().catch(() => {});
+    await AsyncStorage.removeItem(authKey);
+    useAuthStore.setState({ auth: null, isReady: true });
   }, []);
-
-  useEffect(() => {}, []);
 
   const signIn = useCallback(() => {
     open({ mode: 'signin' });
   }, [open]);
+
   const signUp = useCallback(() => {
     open({ mode: 'signup' });
   }, [open]);
 
-  const signOut = useCallback(() => {
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
     setAuth(null);
     close();
-  }, [close]);
+  }, [setAuth, close]);
 
   return {
     isReady,
@@ -51,9 +71,6 @@ export const useAuth = () => {
   };
 };
 
-/**
- * This hook will automatically open the authentication modal if the user is not authenticated.
- */
 export const useRequireAuth = (options) => {
   const { isAuthenticated, isReady } = useAuth();
   const { open } = useAuthModal();

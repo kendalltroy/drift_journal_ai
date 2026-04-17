@@ -1,33 +1,32 @@
-import { saveJournalLocally } from "./journalStorage";
 import { authFetch } from "./authFetch";
+import { saveJournalLocally } from "./journalStorage";
 
-/**
- * Save journal entry to backend and local storage
- * @param {Object} data - { emotion, mode, conversationHistory }
- * @param {Array} audioMemos - Array of audio URL strings
- * @returns {Promise<Object>} - Saved entry from backend
- */
-export async function saveJournalEntry(data, audioMemos = []) {
-  const response = await authFetch("/api/journal", {
-    method: "POST",
-    body: JSON.stringify({
-      emotion: data.emotion,
-      mode: data.mode,
-      conversationHistory: data.conversationHistory,
-    }),
-  });
+export async function saveJournalEntry(data) {
+  let response;
+  try {
+    response = await authFetch("/api/journal", {
+      method: "POST",
+      body: JSON.stringify({
+        emotion: data.emotion,
+        mode: data.mode,
+        conversationHistory: data.conversationHistory,
+      }),
+    });
+  } catch (fetchErr) {
+    console.error("[saveJournalEntry] fetch threw:", fetchErr);
+    throw new Error("Failed to save journal entry");
+  }
 
   if (!response.ok) {
+    const body = await response.text().catch(() => "(unreadable)");
+    console.error(`[saveJournalEntry] ${response.status} ${response.statusText}:`, body);
     throw new Error("Failed to save journal entry");
   }
 
   const savedEntry = await response.json();
 
-  // Save content and audio locally on device (privacy-first)
-  await saveJournalLocally(savedEntry.id.toString(), {
-    conversationHistory: data.conversationHistory,
-    audioUrls: audioMemos,
-  });
+  // Store conversation history locally — never sent to the server
+  await saveJournalLocally(savedEntry.id.toString(), data.conversationHistory);
 
   return savedEntry;
 }

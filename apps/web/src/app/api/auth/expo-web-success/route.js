@@ -1,5 +1,9 @@
 import { getToken } from '@auth/core/jwt';
+import { rateLimit } from "@/app/api/utils/rateLimit";
+
 export async function GET(request) {
+  const limited = rateLimit(request, { limit: 5, key: "auth" });
+  if (limited) return limited;
 	const [token, jwt] = await Promise.all([
 		getToken({
 			req: request,

@@ -1,50 +1,36 @@
-import { getToken } from "@auth/core/jwt";
+import { createClient } from "@supabase/supabase-js";
 
 /**
- * Extract authenticated user from request (supports both web cookies and mobile JWT)
- * @param {Request} request - The incoming request object
- * @returns {Promise<{userId: string, email: string} | null>} - User info or null if not authenticated
+ * Validates the Bearer token from the request using a request-scoped
+ * anon client with the user's JWT in the Authorization header.
+ * The service role client is NOT used here — only for privileged ops elsewhere.
  */
 export async function getAuthUser(request) {
   try {
-    // First, check for mobile JWT in Authorization header
     const authHeader = request.headers.get("Authorization");
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.substring(7);
+    if (!authHeader?.startsWith("Bearer ")) return null;
 
-      // Verify and decode the JWT
-      const jwt = await getToken({
-        req: request,
-        secret: process.env.AUTH_SECRET,
-        secureCookie: false,
-        raw: false,
-        token, // Pass the token directly
-      });
+    const token = authHeader.substring(7);
 
-      if (jwt?.sub) {
-        return {
-          userId: jwt.sub,
-          email: jwt.email || null,
-          name: jwt.name || null,
-        };
+    const userClient = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY,
+      {
+        auth: { autoRefreshToken: false, persistSession: false },
       }
-    }
+    );
 
-    // Fall back to cookie-based auth (web)
-    const jwt = await getToken({
-      req: request,
-      secret: process.env.AUTH_SECRET,
-      secureCookie: process.env.AUTH_URL?.startsWith("https") || false,
-    });
+    const { data: { user }, error } = await userClient.auth.getUser(token);
 
-    if (!jwt || !jwt.sub) {
+    if (error || !user) {
+      console.error("[getAuthUser] error:", error?.message);
       return null;
     }
 
     return {
-      userId: jwt.sub,
-      email: jwt.email || null,
-      name: jwt.name || null,
+      userId: user.id,
+      email: user.email || null,
+      name: user.user_metadata?.name || null,
     };
   } catch (error) {
     console.error("Error getting auth user:", error);
@@ -52,24 +38,13 @@ export async function getAuthUser(request) {
   }
 }
 
-/**
- * Get authenticated user or throw 401 error
- * @param {Request} request - The incoming request object
- * @returns {Promise<{userId: string, email: string}>} - User info
- * @throws {Response} - 401 response if not authenticated
- */
 export async function requireAuth(request) {
   const user = await getAuthUser(request);
-
   if (!user) {
     throw new Response(
       JSON.stringify({ error: "Unauthorized. Please sign in." }),
-      {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      },
+      { status: 401, headers: { "Content-Type": "application/json" } }
     );
   }
-
   return user;
 }

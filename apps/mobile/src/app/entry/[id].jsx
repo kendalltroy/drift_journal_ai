@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import { useRef } from "react";
 import {
   View,
   Text,
@@ -10,37 +10,26 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { X, Volume2 } from "lucide-react-native";
+import { X } from "lucide-react-native";
 import { format } from "date-fns";
 import Owl from "@/components/Owl";
-import { Audio } from "expo-av";
-import { getJournalLocally } from "@/utils/journalStorage";
 import { authFetch } from "@/utils/authFetch";
+import { getJournalLocally } from "@/utils/journalStorage";
 
 export default function EntryDetailScreen() {
   const { id } = useLocalSearchParams();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [playingAudio, setPlayingAudio] = React.useState(null);
-  const soundRef = useRef(null);
-
-  // Fetch both backend metadata AND local content
   const { data: entry, isLoading } = useQuery({
     queryKey: ["journal-entry", id],
     queryFn: async () => {
-      const response = await authFetch(`/api/journal/${id}`);
+      const [response, conversationHistory] = await Promise.all([
+        authFetch(`/api/journal/${id}`),
+        getJournalLocally(id),
+      ]);
       if (!response.ok) throw new Error("Failed to fetch entry");
       const backendData = await response.json();
-
-      // Get local content (conversation history + audio)
-      const localData = await getJournalLocally(id);
-
-      // Merge backend metadata with local content
-      return {
-        ...backendData,
-        conversationHistory: localData?.conversationHistory || [],
-        audio_urls: localData?.audioUrls || [],
-      };
+      return { ...backendData, conversationHistory: conversationHistory ?? [] };
     },
   });
 
@@ -60,44 +49,6 @@ export default function EntryDetailScreen() {
     return conversation;
   };
 
-  const playAudio = async (url) => {
-    try {
-      // Stop currently playing audio if any
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
-
-      if (playingAudio === url) {
-        setPlayingAudio(null);
-        return;
-      }
-
-      const { sound } = await Audio.Sound.createAsync({ uri: url });
-      soundRef.current = sound;
-      setPlayingAudio(url);
-
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.didJustFinish) {
-          setPlayingAudio(null);
-          soundRef.current = null;
-        }
-      });
-
-      await sound.playAsync();
-    } catch (error) {
-      console.error("Error playing audio:", error);
-      setPlayingAudio(null);
-    }
-  };
-
-  React.useEffect(() => {
-    return () => {
-      if (soundRef.current) {
-        soundRef.current.unloadAsync();
-      }
-    };
-  }, []);
 
   const SmoothButton = ({ onPress, children, style }) => {
     const pressAnim = useRef(new Animated.Value(1)).current;
@@ -310,56 +261,6 @@ export default function EntryDetailScreen() {
           </View>
         )}
 
-        {/* Audio memos section from local storage */}
-        {entry.audio_urls && entry.audio_urls.length > 0 && (
-          <View style={{ marginTop: 16 }}>
-            <Text
-              style={{
-                color: "#f9a35e",
-                fontSize: 12,
-                fontWeight: "600",
-                marginBottom: 12,
-                textTransform: "uppercase",
-                letterSpacing: 1,
-              }}
-            >
-              Voice Memos ({entry.audio_urls.length})
-            </Text>
-            {entry.audio_urls.map((url, index) => (
-              <SmoothButton
-                key={index}
-                onPress={() => playAudio(url)}
-                style={{
-                  backgroundColor: "#7e3f2d",
-                  padding: 16,
-                  borderRadius: 12,
-                  marginBottom: 8,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 12,
-                  borderWidth: playingAudio === url ? 2 : 1,
-                  borderColor: playingAudio === url ? "#f9a35e" : "#7e3f2d",
-                }}
-              >
-                <Volume2
-                  color={playingAudio === url ? "#f9a35e" : "#ffefdd"}
-                  size={20}
-                />
-                <Text
-                  style={{
-                    color: playingAudio === url ? "#f9a35e" : "#ffefdd",
-                    fontSize: 14,
-                    fontWeight: "600",
-                  }}
-                >
-                  {playingAudio === url
-                    ? "Playing..."
-                    : `Voice memo ${index + 1}`}
-                </Text>
-              </SmoothButton>
-            ))}
-          </View>
-        )}
 
         {/* Summary and tags from backend */}
         {entry.summary && (
@@ -439,43 +340,6 @@ export default function EntryDetailScreen() {
           </View>
         )}
 
-        {/* Sentiment Score */}
-        {entry.sentiment_score && (
-          <View style={{ marginTop: 16 }}>
-            <Text
-              style={{
-                color: "#f9a35e",
-                fontSize: 12,
-                fontWeight: "600",
-                marginBottom: 8,
-                textTransform: "uppercase",
-                letterSpacing: 1,
-              }}
-            >
-              Emotional Intensity
-            </Text>
-            <View
-              style={{
-                backgroundColor: "#7e3f2d",
-                padding: 16,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: "#f9a35e",
-              }}
-            >
-              <Text
-                style={{
-                  color: "#ffefdd",
-                  fontSize: 16,
-                  textAlign: "center",
-                  textTransform: "capitalize",
-                }}
-              >
-                {entry.sentiment_score}
-              </Text>
-            </View>
-          </View>
-        )}
       </ScrollView>
     </View>
   );
