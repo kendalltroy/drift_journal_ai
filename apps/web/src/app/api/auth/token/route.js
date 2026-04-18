@@ -38,3 +38,5 @@ export async function GET(request) {
 		{ headers: { 'Content-Type': 'application/json' } }
 	);
 }
+
+export const loader = ({ request, params }) => GET(request, { params });

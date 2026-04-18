@@ -60,3 +60,6 @@ export async function DELETE(request, { params }) {
     return Response.json({ error: "Failed to delete entry" }, { status: 500 });
   }
 }
+
+export const loader = ({ request, params }) => GET(request, { params });
+export const action = ({ request, params }) => DELETE(request, { params });

@@ -33,3 +33,5 @@ export async function DELETE(request) {
     return Response.json({ error: "Failed to delete account" }, { status: 500 });
   }
 }
+
+export const action = ({ request, params }) => DELETE(request, { params });

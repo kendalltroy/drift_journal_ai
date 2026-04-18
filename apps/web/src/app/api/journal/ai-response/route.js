@@ -210,3 +210,5 @@ CRITICAL: Never ask more than ONE question per response. Always follow the Valid
     return Response.json({ error: "Failed to generate response" }, { status: 500 });
   }
 }
+
+export const action = ({ request }) => POST(request);

@@ -13,6 +13,7 @@ type Tree = {
 	path: string;
 	children: Tree[];
 	hasPage: boolean;
+	routeFile: string | null;
 	isParam: boolean;
 	paramName: string;
 	isCatchAll: boolean;
@@ -24,21 +25,19 @@ function buildRouteTree(dir: string, basePath = ''): Tree {
 		path: basePath,
 		children: [],
 		hasPage: false,
+		routeFile: null,
 		isParam: false,
 		isCatchAll: false,
 		paramName: '',
 	};
 
-	// Check if the current directory name indicates a parameter
 	const dirName = basePath.split('/').pop();
 	if (dirName?.startsWith('[') && dirName.endsWith(']')) {
 		node.isParam = true;
 		const paramName = dirName.slice(1, -1);
-
-		// Check if it's a catch-all parameter (e.g., [...ids])
 		if (paramName.startsWith('...')) {
 			node.isCatchAll = true;
-			node.paramName = paramName.slice(3); // Remove the '...' prefix
+			node.paramName = paramName.slice(3);
 		} else {
 			node.paramName = paramName;
 		}
@@ -50,14 +49,31 @@ function buildRouteTree(dir: string, basePath = ''): Tree {
 
 		if (stat.isDirectory()) {
 			const childPath = basePath ? `${basePath}/${file}` : file;
-			const childNode = buildRouteTree(filePath, childPath);
-			node.children.push(childNode);
+			// Skip Create.xyz internal platform routes — they have circular imports
+			// and are not part of the application's API surface.
+			if (childPath === 'api/__create') continue;
+			node.children.push(buildRouteTree(filePath, childPath));
 		} else if (file === 'page.jsx') {
 			node.hasPage = true;
-    }
+		} else if (file === 'route.js' || file === 'route.ts') {
+			node.routeFile = file;
+		}
 	}
 
 	return node;
+}
+
+function toRouterPath(nodePath: string): string {
+	return nodePath
+		.split('/')
+		.map((segment) => {
+			if (!segment.startsWith('[') || !segment.endsWith(']')) return segment;
+			const inner = segment.slice(1, -1);
+			if (inner.startsWith('...')) return '*';
+			if (inner.startsWith('[') && inner.endsWith(']')) return `:${inner.slice(1, -1)}?`;
+			return `:${inner}`;
+		})
+		.join('/');
 }
 
 function generateRoutes(node: Tree): RouteConfigEntry[] {
@@ -65,37 +81,16 @@ function generateRoutes(node: Tree): RouteConfigEntry[] {
 
 	if (node.hasPage) {
 		const componentPath =
-			node.path === '' ? `./${node.path}page.jsx` : `./${node.path}/page.jsx`;
-
+			node.path === '' ? `./page.jsx` : `./${node.path}/page.jsx`;
 		if (node.path === '') {
 			routes.push(index(componentPath));
 		} else {
-			// Handle parameter routes
-			let routePath = node.path;
-
-			// Replace all parameter segments in the path
-			const segments = routePath.split('/');
-			const processedSegments = segments.map((segment) => {
-				if (segment.startsWith('[') && segment.endsWith(']')) {
-					const paramName = segment.slice(1, -1);
-
-					// Handle catch-all parameters (e.g., [...ids] becomes *)
-					if (paramName.startsWith('...')) {
-						return '*'; // React Router's catch-all syntax
-					}
-					// Handle optional parameters (e.g., [[id]] becomes :id?)
-					if (paramName.startsWith('[') && paramName.endsWith(']')) {
-						return `:${paramName.slice(1, -1)}?`;
-					}
-					// Handle regular parameters (e.g., [id] becomes :id)
-					return `:${paramName}`;
-				}
-				return segment;
-			});
-
-			routePath = processedSegments.join('/');
-			routes.push(route(routePath, componentPath));
+			routes.push(route(toRouterPath(node.path), componentPath));
 		}
+	}
+
+	if (node.routeFile && node.path !== '') {
+		routes.push(route(toRouterPath(node.path), `./${node.path}/${node.routeFile}`));
 	}
 
 	for (const child of node.children) {
@@ -104,14 +99,19 @@ function generateRoutes(node: Tree): RouteConfigEntry[] {
 
 	return routes;
 }
-if (import.meta.env.DEV) {
-	import.meta.glob('./**/page.jsx', {});
-	if (import.meta.hot) {
-		import.meta.hot.accept((newSelf) => {
-			import.meta.hot?.invalidate();
+
+// These glob calls tell Vite this file uses dynamic imports — required for
+// correct build-time vs browser bundling behaviour in React Router v7.
+if ((import.meta as any).env?.DEV) {
+	(import.meta as any).glob('./**/page.jsx', {});
+	(import.meta as any).glob('./**/route.js', {});
+	if ((import.meta as any).hot) {
+		(import.meta as any).hot.accept((_newSelf: unknown) => {
+			(import.meta as any).hot?.invalidate();
 		});
 	}
 }
+
 const tree = buildRouteTree(__dirname);
 const notFound = route('*?', './__create/not-found.tsx');
 const routes = [...generateRoutes(tree), notFound];

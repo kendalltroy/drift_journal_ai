@@ -106,3 +106,9 @@ export async function DELETE(request, { params }) {
     return Response.json({ error: "Failed to delete task" }, { status: 500 });
   }
 }
+
+export const loader = ({ request, params }) => GET(request, { params });
+export const action = ({ request, params }) => {
+  if (request.method === 'DELETE') return DELETE(request, { params });
+  return PATCH(request, { params });
+};

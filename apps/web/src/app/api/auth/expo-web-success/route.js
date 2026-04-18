@@ -66,3 +66,5 @@ export async function GET(request) {
 		}
 	);
 }
+
+export const loader = ({ request, params }) => GET(request, { params });

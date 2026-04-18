@@ -42,3 +42,5 @@ export async function POST(request) {
     return Response.json({ error: "Failed to transcribe audio" }, { status: 500 });
   }
 }
+
+export const action = ({ request }) => POST(request);

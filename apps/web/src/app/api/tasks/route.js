@@ -59,3 +59,6 @@ export async function POST(request) {
     return Response.json({ error: "Failed to create task" }, { status: 500 });
   }
 }
+
+export const loader = ({ request }) => GET(request);
+export const action = ({ request }) => POST(request);

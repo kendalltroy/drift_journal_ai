@@ -177,3 +177,9 @@ export async function DELETE(request) {
     return Response.json({ error: "Failed to delete entries" }, { status: 500 });
   }
 }
+
+export const loader = ({ request }) => GET(request);
+export const action = ({ request }) => {
+  if (request.method === 'DELETE') return DELETE(request);
+  return POST(request);
+};
