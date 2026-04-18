@@ -50,7 +50,6 @@ async function handleSession(request) {
 }
 
 function buildAuthConfig() {
-  const isSecure = process.env.AUTH_URL?.startsWith('https') ?? false;
   return {
     secret: process.env.AUTH_SECRET,
     basePath: '/api/auth',
@@ -67,11 +66,9 @@ function buildAuthConfig() {
         return session;
       },
     },
-    cookies: {
-      csrfToken: { options: { secure: isSecure, sameSite: 'lax' } },
-      sessionToken: { options: { secure: isSecure, sameSite: 'lax' } },
-      callbackUrl: { options: { secure: isSecure, sameSite: 'lax' } },
-    },
+    // No explicit cookie overrides — Auth.js auto-detects secure/prefix
+    // from the request URL (https: → __Secure-* prefix). This matches
+    // what handleSession does when reading the token with getToken().
     providers: [
       Credentials({
         id: 'credentials-signin',
