@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { PluginContext } from 'rollup';
-import { normalizePath, transformWithEsbuild, type Plugin } from 'vite';
+import { normalizePath, type Plugin } from 'vite';
 
 export interface HierarchicalLayoutOptions {
   /**
@@ -35,24 +35,52 @@ export function layoutWrapperPlugin(userOpts: HierarchicalLayoutOptions = {}): P
     srcRoots: userOpts.srcRoots ?? [path.join(__dirname, '../src')],
   };
 
-  let root = '';
-
   return {
     name: 'vite-react-hierarchical-layouts',
     enforce: 'pre',
 
-    configResolved(c) {
-      root = normalizePath(c.root);
+    // Teach Rollup (SSR build) that ?noLayout.jsx is a virtual module backed
+    // by the real file at the same path minus the query. Without this,
+    // Rollup tries to open a file literally named "page.jsx?noLayout.jsx"
+    // (which doesn't exist) and emits a sourcemap error instead of the real one.
+    resolveId(id, importer) {
+      if (!id.includes(NO_LAYOUT_QUERY)) return null;
+      // Already an absolute path — pass through unchanged.
+      if (path.isAbsolute(id)) return id;
+      // Relative import from the wrapper — resolve against the importer.
+      if (importer && (id.startsWith('./') || id.startsWith('../'))) {
+        const realPath = path.resolve(path.dirname(importer.split('?')[0]), id.split('?')[0]);
+        return normalizePath(realPath) + NO_LAYOUT_QUERY;
+      }
+      return null;
     },
 
-    /* ——— turn any   src/foo/bar/page.tsx   into a wrapper ——— */
-    async transform(code, id) {
-      if (
-        opts.pagePattern.test(id) &&
-        !id.includes(NO_LAYOUT_QUERY) // avoid wrapping the already wrapped page
-      ) {
+// Supply raw file content for ?noLayout.jsx virtual modules.
+    // Without this, Rollup (SSR production build) tries to open a literal file
+    // named "page.jsx?noLayout.jsx" on disk which doesn't exist.
+    load(id) {
+      if (!id.includes(NO_LAYOUT_QUERY)) return null;
+      const realPath = id.split('?')[0];
+      if (!fs.existsSync(realPath)) return null;
+      // Strip 'use client'/'use server' directives — they're RSC-only and cause
+      // Rollup to emit MODULE_LEVEL_DIRECTIVE warnings that reference line 1:0
+      // of the virtual module. Babel's generated jsx-runtime import occupies
+      // line 1 and has no sourcemap entry, so Rollup can't display the warning
+      // location and emits SOURCEMAP_ERROR instead.
+      const code = fs.readFileSync(realPath, 'utf-8').replace(/^['"]use (client|server)['"];?\r?\n?/m, '');
+      return { code, map: null };
+    },
+
+    /* ——— turn any   src/foo/bar/page.jsx   into a wrapper ——— */
+    async transform(_code, id) {
+      if (opts.pagePattern.test(id) && !id.includes(NO_LAYOUT_QUERY)) {
         return buildWrapper.call(this, id);
       }
+      // ?noLayout.jsx virtual modules have their JSX already converted to JS by
+      // the addRenderIds plugin (Babel) which runs earlier. Returning null here
+      // lets Rollup keep the Babel-generated sourcemap (which correctly maps
+      // back to the real file), avoiding a double-transform that shifts line
+      // numbers and produces wrong sourcemap positions for 'use client' warnings.
       return null;
     },
   };

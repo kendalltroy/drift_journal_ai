@@ -31,6 +31,16 @@ export default defineConfig({
     ],
   },
   logLevel: 'info',
+  build: {
+    rollupOptions: {
+      onwarn(warning, warn) {
+        // Virtual ?noLayout.jsx modules can't resolve sourcemap line 1 (Babel-generated
+        // jsx-runtime import has no mapping). Suppress the cosmetic SOURCEMAP_ERROR.
+        if (warning.code === 'SOURCEMAP_ERROR' && warning.loc?.file?.includes('noLayout')) return;
+        warn(warning);
+      },
+    },
+  },
   plugins: [
     nextPublicProcessEnv(),
     restartEnvFileChange(),

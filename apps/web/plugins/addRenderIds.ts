@@ -153,13 +153,14 @@ export function addRenderIds(): PluginOption {
         return null;
       }
 
+      const babelFilename = id.split('?')[0];
       const result = await babel.transformAsync(code, {
-        filename: id,
+        filename: babelFilename,
         sourceMaps: true,
         babelrc: false,
         configFile: false,
         presets: [['@babel/preset-react', { runtime: 'automatic' }], '@babel/preset-typescript'],
-        plugins: [getRenderIdVisitor({ filename: id })],
+        plugins: [getRenderIdVisitor({ filename: babelFilename })],
       });
 
       if (!result) return null;
