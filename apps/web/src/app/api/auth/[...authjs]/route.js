@@ -24,7 +24,9 @@ function getAdapter() {
 // Handle GET /api/auth/session manually — bypasses assertConfig entirely.
 // The mobile app and web app both rely on JWT cookies; no DB needed here.
 async function handleSession(request) {
-  const isSecure = process.env.AUTH_URL?.startsWith('https') ?? false;
+  // Derive security from the actual request URL, not AUTH_URL env var.
+  // Vercel always serves HTTPS so this correctly picks __Secure-* cookie names.
+  const isSecure = new URL(request.url).protocol === 'https:';
   try {
     const token = await getToken({
       req: request,
