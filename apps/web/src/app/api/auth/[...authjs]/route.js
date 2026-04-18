@@ -81,12 +81,17 @@ function buildAuthConfig() {
           const { email, password } = credentials;
           if (!email || !password) return null;
           if (typeof email !== 'string' || typeof password !== 'string') return null;
-          const adapter = getAdapter();
-          const user = await adapter.getUserByEmail(email);
-          if (!user) return null;
-          const matchingAccount = user.accounts.find((a) => a.provider === 'credentials');
-          if (!matchingAccount?.password) return null;
-          return (await verify(matchingAccount.password, password)) ? user : null;
+          try {
+            const adapter = getAdapter();
+            const user = await adapter.getUserByEmail(email);
+            if (!user) return null;
+            const matchingAccount = user.accounts.find((a) => a.provider === 'credentials');
+            if (!matchingAccount?.password) return null;
+            return (await verify(matchingAccount.password, password)) ? user : null;
+          } catch (err) {
+            console.error('[auth/signin] authorize threw:', err?.message ?? err);
+            throw err;
+          }
         },
       }),
       Credentials({
@@ -102,23 +107,28 @@ function buildAuthConfig() {
           const { email, password, name, image } = credentials;
           if (!email || !password) return null;
           if (typeof email !== 'string' || typeof password !== 'string') return null;
-          const adapter = getAdapter();
-          const existing = await adapter.getUserByEmail(email);
-          if (existing) return null;
-          const newUser = await adapter.createUser({
-            emailVerified: null,
-            email,
-            name: typeof name === 'string' && name.length > 0 ? name : null,
-            image: typeof image === 'string' && image.length > 0 ? image : null,
-          });
-          await adapter.linkAccount({
-            extraData: { password: await hash(password) },
-            type: 'credentials',
-            userId: newUser.id,
-            providerAccountId: newUser.id,
-            provider: 'credentials',
-          });
-          return newUser;
+          try {
+            const adapter = getAdapter();
+            const existing = await adapter.getUserByEmail(email);
+            if (existing) return null;
+            const newUser = await adapter.createUser({
+              emailVerified: null,
+              email,
+              name: typeof name === 'string' && name.length > 0 ? name : null,
+              image: typeof image === 'string' && image.length > 0 ? image : null,
+            });
+            await adapter.linkAccount({
+              extraData: { password: await hash(password) },
+              type: 'credentials',
+              userId: newUser.id,
+              providerAccountId: newUser.id,
+              provider: 'credentials',
+            });
+            return newUser;
+          } catch (err) {
+            console.error('[auth/signup] authorize threw:', err?.message ?? err);
+            throw err;
+          }
         },
       }),
     ],
