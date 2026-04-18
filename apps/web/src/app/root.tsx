@@ -239,7 +239,26 @@ class ErrorBoundaryWrapper extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   render() {
     if (this.state.hasError) {
-      return <InternalErrorBoundary error={this.state.error} params={{}} />;
+      const err = this.state.error;
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'object' && err !== null && 'message' in err
+            ? String((err as { message: unknown }).message)
+            : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      return (
+        <>
+          <InternalErrorBoundary error={this.state.error} params={{}} />
+          <div style={{ position: 'fixed', inset: 0, background: '#0d0d0d', color: '#f87171', fontFamily: 'monospace', padding: '2rem', overflow: 'auto', zIndex: 9999 }}>
+            <h1 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>Render Error</h1>
+            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#1a1a1a', padding: '1rem', borderRadius: '8px', fontSize: '0.85rem' }}>
+              {message}
+              {stack ? `\n\n${stack}` : ''}
+            </pre>
+          </div>
+        </>
+      );
     }
     return this.props.children;
   }
@@ -459,5 +478,36 @@ export default function App() {
     <SessionProvider>
       <Outlet />
     </SessionProvider>
+  );
+}
+
+// React Router route-level error boundary — catches loader/action errors and
+// render errors that bubble past the component tree. Shows the raw error in
+// production so a white screen doesn't silently hide the real problem.
+export function ErrorBoundary() {
+  const routeError = useRouteError();
+  const message =
+    routeError instanceof Error
+      ? routeError.message
+      : typeof routeError === 'object' && routeError !== null && 'message' in routeError
+        ? String((routeError as { message: unknown }).message)
+        : JSON.stringify(routeError, null, 2);
+  const stack = routeError instanceof Error ? routeError.stack : undefined;
+
+  return (
+    <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>App Error</title>
+      </head>
+      <body style={{ margin: 0, fontFamily: 'monospace', background: '#0d0d0d', color: '#f87171', padding: '2rem' }}>
+        <h1 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>Application Error</h1>
+        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#1a1a1a', padding: '1rem', borderRadius: '8px', fontSize: '0.85rem' }}>
+          {message}
+          {stack ? `\n\n${stack}` : ''}
+        </pre>
+      </body>
+    </html>
   );
 }
