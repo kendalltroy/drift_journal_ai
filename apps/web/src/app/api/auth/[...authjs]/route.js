@@ -1,4 +1,5 @@
 import { Auth, skipCSRFCheck } from '@auth/core';
+import { getToken } from '@auth/core/jwt';
 import Credentials from '@auth/core/providers/credentials';
 import { hash, verify } from 'argon2';
 import postgres from 'postgres';
@@ -20,9 +21,34 @@ function getAdapter() {
   return _adapter;
 }
 
+// Handle GET /api/auth/session manually — bypasses assertConfig entirely.
+// The mobile app and web app both rely on JWT cookies; no DB needed here.
+async function handleSession(request) {
+  const isSecure = process.env.AUTH_URL?.startsWith('https') ?? false;
+  try {
+    const token = await getToken({
+      req: request,
+      secret: process.env.AUTH_SECRET,
+      secureCookie: isSecure,
+    });
+    if (!token) return Response.json(null);
+    return Response.json({
+      user: {
+        id: token.sub,
+        email: token.email,
+        name: token.name,
+        image: token.picture,
+      },
+      expires: new Date(Number(token.exp) * 1000).toISOString(),
+    });
+  } catch (err) {
+    console.error('[auth/session] error:', err?.message ?? err);
+    return Response.json(null);
+  }
+}
+
 function buildAuthConfig() {
   const isSecure = process.env.AUTH_URL?.startsWith('https') ?? false;
-
   return {
     secret: process.env.AUTH_SECRET,
     basePath: '/api/auth',
@@ -101,14 +127,21 @@ function buildAuthConfig() {
 }
 
 async function handleAuth(request) {
-  // No secret = return empty session (graceful, not a 500)
-  if (!process.env.AUTH_SECRET) {
-    return Response.json(null);
+  if (!process.env.AUTH_SECRET) return Response.json(null);
+
+  const url = new URL(request.url);
+  const segments = url.pathname.split('/').filter(Boolean);
+  const action = segments[segments.length - 1];
+
+  // /api/auth/session — handle directly to avoid assertConfig failures
+  if (request.method === 'GET' && action === 'session') {
+    return handleSession(request);
   }
+
   try {
     return await Auth(request, buildAuthConfig());
   } catch (err) {
-    console.error('[auth] handler error:', err?.message ?? err);
+    console.error('[auth] error:', err?.message ?? err);
     return Response.json({ error: 'Auth error' }, { status: 500 });
   }
 }
