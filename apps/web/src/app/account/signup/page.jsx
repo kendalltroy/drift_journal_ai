@@ -14,14 +14,20 @@ export default function SignUpPage() {
     typeof window !== 'undefined'
       ? new URLSearchParams(window.location.search)
       : new URLSearchParams();
-  const callbackUrl = params.get('callbackUrl') || '/api/auth/token';
+  const callbackUrl = params.get('callbackUrl') || '/';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      await signIn('credentials-signup', { name, email, password, callbackUrl });
+      const result = await signIn('credentials-signup', { name, email, password, redirect: false });
+      if (result?.error) {
+        setError('Could not create account. Email may already be in use.');
+        setLoading(false);
+      } else {
+        window.location.href = callbackUrl;
+      }
     } catch (err) {
       setError('Could not create account. Email may already be in use.');
       setLoading(false);

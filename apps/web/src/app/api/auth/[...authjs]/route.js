@@ -138,7 +138,14 @@ function buildAuthConfig() {
 
 async function handleAuth(request) {
   console.log('[auth] AUTH_SECRET set:', !!process.env.AUTH_SECRET, 'len:', process.env.AUTH_SECRET?.length);
-  console.log('[auth] DATABASE_URL set:', !!process.env.DATABASE_URL);
+  try {
+    const dbHost = new URL(process.env.DATABASE_URL ?? '').hostname;
+    console.log('[auth] DATABASE_URL host:', dbHost);
+  } catch (e) {
+    console.log('[auth] DATABASE_URL parse error:', e.message);
+    console.log('[auth] DATABASE_URL prefix:', JSON.stringify(process.env.DATABASE_URL?.slice(0, 40)));
+    console.log('[auth] DATABASE_URL length:', process.env.DATABASE_URL?.length);
+  }
   if (!process.env.AUTH_SECRET) return Response.json(null);
 
   const url = new URL(request.url);

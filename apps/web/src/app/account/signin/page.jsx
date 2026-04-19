@@ -2,10 +2,8 @@
 
 import { signIn } from '@auth/create/react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
 
 export default function SignInPage() {
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -15,14 +13,20 @@ export default function SignInPage() {
     typeof window !== 'undefined'
       ? new URLSearchParams(window.location.search)
       : new URLSearchParams();
-  const callbackUrl = params.get('callbackUrl') || '/api/auth/token';
+  const callbackUrl = params.get('callbackUrl') || '/';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      await signIn('credentials-signin', { email, password, callbackUrl });
+      const result = await signIn('credentials-signin', { email, password, redirect: false });
+      if (result?.error) {
+        setError('Invalid email or password.');
+        setLoading(false);
+      } else {
+        window.location.href = callbackUrl;
+      }
     } catch (err) {
       setError('Invalid email or password.');
       setLoading(false);
