@@ -10,7 +10,8 @@ let _adapter = null;
 function getAdapter() {
   if (_adapter) return _adapter;
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
-  const pgClient = postgres(process.env.DATABASE_URL);
+  // prepare: false is required for Supabase transaction pooler (port 6543)
+  const pgClient = postgres(process.env.DATABASE_URL, { prepare: false, ssl: 'require' });
   const pool = {
     query: async (sql, params) => {
       const result = await pgClient.unsafe(sql, params ?? []);
