@@ -2,10 +2,12 @@ import { useAuth, useRequireAuth } from "@/utils/auth/useAuth";
 import { AuthModal } from "@/utils/auth/useAuthModal";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import NotificationManager from "@/utils/notifications";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import ReminderOnboardingModal, { ONBOARDING_SHOWN_KEY } from "@/components/ReminderOnboardingModal";
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
@@ -25,7 +27,8 @@ function AuthGate() {
 }
 
 export default function RootLayout() {
-  const { initiate, isReady } = useAuth();
+  const { initiate, isReady, auth } = useAuth();
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     initiate();
@@ -37,6 +40,13 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [isReady]);
+
+  useEffect(() => {
+    if (!isReady || !auth) return;
+    AsyncStorage.getItem(ONBOARDING_SHOWN_KEY).then((val) => {
+      if (val === null) setShowOnboarding(true);
+    });
+  }, [isReady, auth]);
 
   if (!isReady) {
     return null;
@@ -78,6 +88,10 @@ export default function RootLayout() {
         </Stack>
         <AuthGate />
         <AuthModal />
+        <ReminderOnboardingModal
+          visible={showOnboarding}
+          onDismiss={() => setShowOnboarding(false)}
+        />
       </GestureHandlerRootView>
     </QueryClientProvider>
   );
