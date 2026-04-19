@@ -686,7 +686,7 @@ export default function NewEntryScreen() {
               Reminder Set For:
             </Text>
             <Text style={{ color: "#4e1709", fontSize: 18, fontWeight: "700" }}>
-              {format(new Date(selectedDate), "EEEE, MMMM d, yyyy")} at{" "}
+              {format(new Date(selectedDate + 'T00:00:00'), "EEEE, MMMM d, yyyy")} at{" "}
               {formatTime12(selectedTime.hour, selectedTime.minute)}
             </Text>
           </View>

@@ -74,7 +74,7 @@ export async function POST(request) {
               {
                 role: "system",
                 content:
-                  "You are a summarization expert. Generate a summary of exactly 5 words or fewer that captures the main theme or emotion of this journal entry. Be concise and specific. Examples: 'Anxious about work presentation', 'Grateful for peaceful morning', 'Worried about family conflict'.",
+                  "You are a summarization expert. Generate a summary of exactly 5 words or fewer that captures the main theme or emotion of this journal entry. Be concise and specific. IMPORTANT: Never use clinical, crisis, or triggering language — no terms like 'suicidal', 'self-harm', 'eating disorder', 'overdose', 'cutting', or any specific mental health diagnosis. Instead use broad, gentle language like 'mental health', 'serious thoughts', 'difficult feelings', 'personal struggles'. Examples: 'Anxious about work presentation', 'Grateful for peaceful morning', 'Worried about family conflict', 'Processing some serious thoughts'.",
               },
               {
                 role: "user",
