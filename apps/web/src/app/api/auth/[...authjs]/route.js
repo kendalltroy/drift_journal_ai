@@ -136,6 +136,8 @@ function buildAuthConfig() {
 }
 
 async function handleAuth(request) {
+  console.log('[auth] AUTH_SECRET set:', !!process.env.AUTH_SECRET, 'len:', process.env.AUTH_SECRET?.length);
+  console.log('[auth] DATABASE_URL set:', !!process.env.DATABASE_URL);
   if (!process.env.AUTH_SECRET) return Response.json(null);
 
   const url = new URL(request.url);
@@ -148,7 +150,17 @@ async function handleAuth(request) {
   }
 
   try {
-    return await Auth(request, buildAuthConfig());
+    return await Auth(request, {
+      ...buildAuthConfig(),
+      logger: {
+        error(code, ...message) {
+          console.error('[auth/logger] error code:', code, ...message);
+        },
+        warn(code) {
+          console.warn('[auth/logger] warn code:', code);
+        },
+      },
+    });
   } catch (err) {
     console.error('[auth] error:', err?.message ?? err);
     return Response.json({ error: 'Auth error' }, { status: 500 });
