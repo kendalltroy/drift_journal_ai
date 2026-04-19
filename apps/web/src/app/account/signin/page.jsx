@@ -13,7 +13,7 @@ export default function SignInPage() {
     typeof window !== 'undefined'
       ? new URLSearchParams(window.location.search)
       : new URLSearchParams();
-  const callbackUrl = params.get('callbackUrl') || '/';
+  const callbackUrl = params.get('callbackUrl') || '/home';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
