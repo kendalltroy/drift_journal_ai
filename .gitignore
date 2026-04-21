@@ -1,6 +1,11 @@
 .DS_Store
 
 # Environment variables - never commit secrets
-.env
+# apps/web .env files contain real secrets (DATABASE_URL, AUTH_SECRET)
+apps/web/.env
+apps/web/.env.local
+apps/web/.env.*.local
+
+# apps/mobile .env only has EXPO_PUBLIC_* client values — committed intentionally
 .env.local
 .env.*.local
