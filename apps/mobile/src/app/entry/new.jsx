@@ -27,6 +27,7 @@ import { format, addDays } from "date-fns";
 import Owl from "@/components/Owl";
 import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedView";
 import PremiumModal from "@/components/PremiumModal";
+import { usePremium } from "@/hooks/usePremium";
 import {
   useAudioRecorder,
   useAudioRecorderState,
@@ -62,6 +63,7 @@ export default function NewEntryScreen() {
   const [isLoadingAi, setIsLoadingAi] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const { isPremium } = usePremium();
   const [showCrisisModal, setShowCrisisModal] = useState(false);
 
   // Date/time picker state
@@ -229,6 +231,10 @@ export default function NewEntryScreen() {
   };
 
   const handleContinue = async () => {
+    if (!isPremium) {
+      setShowPremiumModal(true);
+      return;
+    }
     const lastMessage =
       lastThoughtsContent ||
       brainDump3Content ||
@@ -371,6 +377,10 @@ export default function NewEntryScreen() {
   };
 
   const handleVoiceMemo = async () => {
+    if (!isPremium) {
+      setShowPremiumModal(true);
+      return;
+    }
     if (recorderState.isRecording) {
       await recorder.stop();
 
