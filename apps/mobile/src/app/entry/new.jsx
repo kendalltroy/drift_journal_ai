@@ -1029,7 +1029,7 @@ export default function NewEntryScreen() {
                       }}
                       value={content}
                       onChangeText={setContent}
-                      autoFocus={!recorderState.isRecording}
+                      autoFocus={false}
                       editable={!recorderState.isRecording}
                     />
 
@@ -1480,7 +1480,7 @@ export default function NewEntryScreen() {
                   }}
                   value={content}
                   onChangeText={setContent}
-                  autoFocus={!recorderState.isRecording}
+                  autoFocus={false}
                   editable={!recorderState.isRecording}
                 />
 
@@ -1657,18 +1657,16 @@ export default function NewEntryScreen() {
                   onPress={handleContinueJournal}
                   style={{
                     flex: 1,
-                    backgroundColor: "#7e3f2d",
+                    backgroundColor: "#f9a35e",
                     paddingVertical: 18,
                     paddingHorizontal: 20,
                     borderRadius: 20,
                     alignItems: "center",
-                    borderWidth: 1,
-                    borderColor: "#f9a35e",
                   }}
                 >
                   <Text
                     style={{
-                      color: "#f9a35e",
+                      color: "#4e1709",
                       fontSize: 16,
                       fontWeight: "700",
                     }}
@@ -1681,16 +1679,18 @@ export default function NewEntryScreen() {
                   onPress={handleCloseJournalNow}
                   style={{
                     flex: 1,
-                    backgroundColor: "#f9a35e",
+                    backgroundColor: "transparent",
                     paddingVertical: 18,
                     paddingHorizontal: 20,
                     borderRadius: 20,
                     alignItems: "center",
+                    borderWidth: 1,
+                    borderColor: "#7e3f2d",
                   }}
                 >
                   <Text
                     style={{
-                      color: "#4e1709",
+                      color: "#7e3f2d",
                       fontSize: 16,
                       fontWeight: "700",
                     }}

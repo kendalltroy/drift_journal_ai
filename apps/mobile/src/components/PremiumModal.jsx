@@ -12,7 +12,6 @@ import {
   Mic,
   Bell,
   Infinity,
-  ShieldCheck,
   Crown,
 } from "lucide-react-native";
 
@@ -151,11 +150,6 @@ export default function PremiumModal({ visible, onClose }) {
                 title="Unlimited Entries"
                 description="Keep every memory and reflection forever."
               />
-              <Feature
-                icon={ShieldCheck}
-                title="Journal Lock"
-                description="Keep your reflections private with Biometric or PIN lock."
-              />
             </ScrollView>
 
             <SmoothButton
@@ -181,7 +175,7 @@ export default function PremiumModal({ visible, onClose }) {
                   marginTop: 2,
                 }}
               >
-                Then $4.99 / month. Cancel anytime.
+                Then $2.99 / month. Cancel anytime.
               </Text>
             </SmoothButton>
 

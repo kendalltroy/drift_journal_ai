@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Home, BookText, Settings } from "lucide-react-native";
+import { Home, BookText, Bell, Settings } from "lucide-react-native";
 
 export default function TabLayout() {
   return (
@@ -26,21 +26,28 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => <Home color={color} size={24} />,
+          tabBarIcon: ({ color }) => <Home color={color} size={24} />,
         }}
       />
       <Tabs.Screen
         name="journal"
         options={{
           title: "History",
-          tabBarIcon: ({ color, size }) => <BookText color={color} size={24} />,
+          tabBarIcon: ({ color }) => <BookText color={color} size={24} />,
+        }}
+      />
+      <Tabs.Screen
+        name="reminders"
+        options={{
+          title: "Reminders",
+          tabBarIcon: ({ color }) => <Bell color={color} size={24} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: "Settings",
-          tabBarIcon: ({ color, size }) => <Settings color={color} size={24} />,
+          tabBarIcon: ({ color }) => <Settings color={color} size={24} />,
         }}
       />
     </Tabs>

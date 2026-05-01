@@ -5,32 +5,40 @@ import {
   TouchableOpacity,
   ScrollView,
   Animated,
+  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Owl from "@/components/Owl";
 
 const emotions = [
+  { id: "peaceful", label: "Peaceful", color: "#34D399" },
+  { id: "excited", label: "Excited", color: "#F472B6" },
   { id: "anxious", label: "Anxious", color: "#FCD34D" },
   { id: "stressed", label: "Stressed", color: "#F87171" },
   { id: "overwhelmed", label: "Overwhelmed", color: "#60A5FA" },
-  { id: "existential", label: "Existential", color: "#A78BFA" },
   { id: "sad", label: "Sad", color: "#94A3B8" },
-  { id: "peaceful", label: "Peaceful", color: "#34D399" },
-  { id: "excited", label: "Excited", color: "#F472B6" },
 ];
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [selectedEmotion, setSelectedEmotion] = useState(null);
+  const [showOtherInput, setShowOtherInput] = useState(false);
+  const [otherEmotion, setOtherEmotion] = useState("");
 
-  const handleStart = (emotion) => {
-    setSelectedEmotion(emotion);
+  const handleStart = (emotionLabel) => {
     router.push({
       pathname: "/entry/new",
-      params: { emotion: emotion.label },
+      params: { emotion: emotionLabel },
     });
+  };
+
+  const handleOtherSubmit = () => {
+    const trimmed = otherEmotion.trim();
+    if (!trimmed) return;
+    setOtherEmotion("");
+    setShowOtherInput(false);
+    handleStart(trimmed);
   };
 
   const SmoothButton = ({ onPress, children, style }) => {
@@ -122,7 +130,7 @@ export default function HomeScreen() {
           {emotions.map((emotion) => (
             <SmoothButton
               key={emotion.id}
-              onPress={() => handleStart(emotion)}
+              onPress={() => handleStart(emotion.label)}
               style={{
                 backgroundColor: "#7e3f2d",
                 paddingHorizontal: 20,
@@ -134,18 +142,79 @@ export default function HomeScreen() {
                 alignItems: "center",
               }}
             >
-              <Text
-                style={{
-                  color: "#ffefdd",
-                  fontSize: 16,
-                  fontWeight: "600",
-                }}
-              >
+              <Text style={{ color: "#ffefdd", fontSize: 16, fontWeight: "600" }}>
                 {emotion.label}
               </Text>
             </SmoothButton>
           ))}
+
+          <SmoothButton
+            onPress={() => setShowOtherInput((v) => !v)}
+            style={{
+              backgroundColor: showOtherInput ? "#f9a35e" : "#7e3f2d",
+              paddingHorizontal: 20,
+              paddingVertical: 14,
+              borderRadius: 30,
+              borderWidth: 1,
+              borderColor: "#f9a35e",
+              minWidth: "40%",
+              alignItems: "center",
+            }}
+          >
+            <Text
+              style={{
+                color: showOtherInput ? "#4e1709" : "#ffefdd",
+                fontSize: 16,
+                fontWeight: "600",
+              }}
+            >
+              Other
+            </Text>
+          </SmoothButton>
         </View>
+
+        {showOtherInput && (
+          <View style={{ marginTop: 24 }}>
+            <TextInput
+              value={otherEmotion}
+              onChangeText={setOtherEmotion}
+              placeholder="How are you feeling?"
+              placeholderTextColor="#7e3f2d"
+              autoFocus
+              returnKeyType="go"
+              onSubmitEditing={handleOtherSubmit}
+              style={{
+                backgroundColor: "#3a1005",
+                color: "#ffefdd",
+                fontSize: 16,
+                padding: 16,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: "#7e3f2d",
+                marginBottom: 12,
+              }}
+            />
+            <SmoothButton
+              onPress={handleOtherSubmit}
+              style={{
+                backgroundColor: otherEmotion.trim() ? "#f9a35e" : "#7e3f2d",
+                paddingVertical: 16,
+                borderRadius: 16,
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  color: otherEmotion.trim() ? "#4e1709" : "#7e3f2d",
+                  fontSize: 16,
+                  fontWeight: "700",
+                }}
+              >
+                Start Journaling
+              </Text>
+            </SmoothButton>
+          </View>
+        )}
       </ScrollView>
     </View>
   );

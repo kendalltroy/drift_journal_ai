@@ -9,6 +9,7 @@
 		"typecheck": "react-router typegen && tsc --noEmit"
 	},
 	"dependencies": {
+		"@anthropic-ai/sdk": "^0.92.0",
 		"@auth/core": "^0.37.2",
 		"@babel/generator": "^7.27.1",
 		"@chakra-ui/react": "2.8.2",
