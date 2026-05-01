@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import NotificationManager from "@/utils/notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ReminderOnboardingModal, { ONBOARDING_SHOWN_KEY } from "@/components/ReminderOnboardingModal";
+import Purchases from "react-native-purchases";
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
@@ -33,6 +34,7 @@ export default function RootLayout() {
   useEffect(() => {
     initiate();
     NotificationManager.requestPermission();
+    Purchases.configure({ apiKey: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY });
   }, [initiate]);
 
   useEffect(() => {
