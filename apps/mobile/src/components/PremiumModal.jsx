@@ -37,7 +37,7 @@ export default function PremiumModal({ visible, onClose, onPurchaseSuccess }) {
     try {
       const { customerInfo } = await Purchases.purchasePackage(pkg);
       await refresh();
-      if (customerInfo.entitlements.active["premium"]) {
+      if (customerInfo.entitlements.active["Drift Pro"]) {
         onPurchaseSuccess?.();
         onClose();
       }
@@ -55,7 +55,7 @@ export default function PremiumModal({ visible, onClose, onPurchaseSuccess }) {
     try {
       const info = await Purchases.restorePurchases();
       await refresh();
-      if (info.entitlements.active["premium"]) {
+      if (info.entitlements.active["Drift Pro"]) {
         onPurchaseSuccess?.();
         onClose();
       } else {

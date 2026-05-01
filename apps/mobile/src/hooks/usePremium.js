@@ -8,7 +8,7 @@ export function usePremium() {
   const refresh = useCallback(async () => {
     try {
       const info = await Purchases.getCustomerInfo();
-      setIsPremium(!!info.entitlements.active["premium"]);
+      setIsPremium(!!info.entitlements.active["Drift Pro"]);
     } catch {
       setIsPremium(false);
     } finally {
