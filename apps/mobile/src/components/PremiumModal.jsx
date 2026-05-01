@@ -10,7 +10,6 @@ import {
 import {
   X,
   Mic,
-  Bell,
   Infinity,
   Crown,
 } from "lucide-react-native";
@@ -139,11 +138,6 @@ export default function PremiumModal({ visible, onClose }) {
                 icon={Mic}
                 title="Voice Journaling"
                 description="Speak your thoughts directly. Perfect for when you're too tired to type."
-              />
-              <Feature
-                icon={Bell}
-                title="Smart Reminders"
-                description="Gentle nudges based on your bedtime habits."
               />
               <Feature
                 icon={Infinity}
